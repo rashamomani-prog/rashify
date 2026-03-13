@@ -2,12 +2,11 @@ from fastapi import FastAPI
 from starlette.middleware.cors import CORSMiddleware
 from app.routers import ai_routes
 from app.database.database import engine, Base
-from app.models import user, recipe # تأكدت من استيراد الموديلات
+from app.models import user, recipe
 from app.routers import auth, recipe as recipe_router, admin, ai_routes # أضفنا ai_routes
 
 app = FastAPI(title="Rashify API")
 
-# إعدادات الـ CORS مهمة جداً عشان التلفون يقدر يحكي مع الباك أند
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -19,7 +18,6 @@ app.add_middleware(
 # إنشاء الجداول في قاعدة البيانات
 Base.metadata.create_all(bind=engine)
 
-# تسجيل الـ Routers القديمة والجديدة
 app.include_router(auth.router, prefix="/auth", tags=["Authentication"])
 app.include_router(recipe_router.router, prefix="/recipes", tags=["Recipes"])
 app.include_router(admin.router, prefix="/admin", tags=["Admin"])

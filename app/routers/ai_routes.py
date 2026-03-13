@@ -1,41 +1,38 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from app.database.database import get_db
-from app.models.recipe import Recipe  # تأكدي إن الموديل بهذا الاسم
-from app.services.ai_service import AIService
-from pydantic import BaseModel
-import os
+from app.models.recipe import Recipe
+import google.generativeai as genai
 
 router = APIRouter()
 
 
-# --- 1. ميزة البحث (Search) عن الوصفات في قاعدة البيانات ---
-@router.get("/search")
-def search_recipes(query: str, db: Session = Depends(get_db)):
-    # بيبحث في العنوان والمكونات عن أي نص بيشبه اللي دخله المستخدم
-    results = db.query(Recipe).filter(
-        (Recipe.title.ilike(f"%{query}%")) |
-        (Recipe.ingredients.ilike(f"%{query}%"))
-    ).all()
-    return results
+@router.post("/predict")
+async def get_ai_recommendation(user_query: dict, db: Session = Depends(get_db)):
+    try:
+        all_recipes = db.query(Recipe).all()
 
+        if not all_recipes:
+            raise HTTPException(status_code=404, detail="No recipes found in database. Did you run the seed?")
+        recipes_context = "\n".join([
+            f"ID: {r.id}, Title: {r.title}, Ingredients: {r.ingredients}"
+            for r in all_recipes
+        ])
+        prompt = f"""
+        You are a professional chef. Based on the following recipes available in our database:
+        {recipes_context}
 
-# --- 2. ميزة اقتراحات الـ AI (Gemini) ---
-class IngredientsRequest(BaseModel):
-    ingredients: list[str]
+        The user is asking: "{user_query.get('text')}"
 
+        Please recommend the best 3 recipes from the list above. 
+        Return ONLY the IDs of the recipes as a comma-separated list (e.g., 1, 15, 22).
+        """
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
+        recommended_ids = [int(i.strip()) for i in response.text.split(',')]
+        final_recommendations = db.query(Recipe).filter(Recipe.id.in_(recommended_ids)).all()
 
-@router.post("/suggest")
-async def get_ai_suggestion(request: IngredientsRequest):
-    # بيقرأ المفتاح من ملف الـ .env
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        raise HTTPException(status_code=500, detail="Gemini API Key is missing in .env file")
+        return final_recommendations
 
-    ai_service = AIService(api_key=api_key)
-    result = ai_service.get_recipe_suggestion(request.ingredients)
-
-    if "error" in result:
-        raise HTTPException(status_code=500, detail=result["error"])
-
-    return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

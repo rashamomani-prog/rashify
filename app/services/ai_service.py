@@ -1,6 +1,6 @@
 import google.generativeai as genai
 import json
-from app.core.config import settings
+from app.routers.config import settings
 
 class AIService:
     def __init__(self):
