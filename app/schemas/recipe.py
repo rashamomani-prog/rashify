@@ -1,13 +1,17 @@
 from pydantic import BaseModel
 
+
 class RecipeBase(BaseModel):
     title: str
-    description: str | None = None
+    ingredients: str
+    instructions: str
+    image_url: str | None = None
+    category: str | None = None
+
 
 class RecipeOut(RecipeBase):
     id: int
-    user_id: int
-    likes: int
+    owner_id: int | None = None
 
     class Config:
-        orm_mode = True
+        from_attributes = True
